@@ -1,29 +1,37 @@
 %{
 	#include <stdio.h>
 	#include <stdlib.h>
-	#include "y.tab.h"
-	void yyerror(char* s); // error handling function
+	#include <string.h>
+
+	void yyerror(const char*); // error handling function
 	int yylex(); // declare the function performing lexical analysis
 	extern int yylineno; // track the line number
-
-
+	extern char* yytext;
+	int err = 0;
 %}
+
 /* declare tokens */
-%token T_INT T_CHAR T_DOUBLE T_WHILE  T_INC T_DEC   T_OROR T_ANDAND T_EQCOMP T_NOTEQUAL T_GREATEREQ T_LESSEREQ T_LEFTSHIFT T_RIGHTSHIFT T_NUM T_ID T_PRINTLN T_STRING  T_FLOAT T_BOOLEAN T_IF T_ELSE T_STRLITERAL T_DO T_INCLUDE T_HEADER T_MAIN
+%token T_INT T_CHAR T_DOUBLE T_INC T_DEC   T_OROR T_ANDAND T_EQCOMP T_NOTEQUAL T_GREATEREQ T_LESSEREQ T_LEFTSHIFT T_RIGHTSHIFT T_NUM T_ID T_PRINTLN T_STRING  T_FLOAT T_BOOLEAN T_IF T_ELSE T_WHILE T_STRLITERAL T_DO T_INCLUDE T_HEADER T_MAIN T_FOR
 
 /* specify start symbol */
 %start START
 
+%left '<' '>'
+%left '+' '-' 
+%left '*' '/' 
+
+
 %%
-START : PROG { printf("Valid syntax\n"); YYACCEPT; }	/* If program fits the grammar, syntax is valid */
+START : PROG { if(err==0) {printf("Valid syntax\n"); YYACCEPT;} }	/* If program fits the grammar, syntax is valid */
         ;						/* Anything within {} is C code, it is the action corresponding to the 							production rule */
 
 
 	  
-PROG :  T_INCLUDE '<' T_HEADER '>' PROG	/* include header */
+PROG :  T_INCLUDE '<' T_HEADER '>' PROG		/* include header */
 	|MAIN PROG				/* main function  */
 	|DECLR ';' PROG 			/* declarations   */	
 	| ASSGN ';' PROG 			/* assigments     */
+	| error ';' PROG 			/* snychronizing token */
 	| 					/* end of program */
 	;
 	 
@@ -34,7 +42,7 @@ DECLR : TYPE LISTVAR
 
 
 LISTVAR : LISTVAR ',' T_ID 
-	  | T_ID 
+	  | T_ID
 	  ;
 	
 TYPE : T_INT
@@ -76,7 +84,8 @@ REL_OP :   T_LESSEREQ
 	   | T_NOTEQUAL
 	   ;	
 
-	
+
+
 /* Grammar for main function */
 MAIN : TYPE T_MAIN '(' EMPTY_LISTVAR ')' '{' STMT '}';
 
@@ -89,24 +98,34 @@ EMPTY_LISTVAR : LISTVAR
 /* statements can be standalone, or parts of blocks */
 STMT : STMT_NO_BLOCK STMT
        | BLOCK STMT
-       |
+       | WHILE_STMT
+       | IF_STMT
+       | ASSGN
+       |	
        ;
 
 STMT_NO_BLOCK : DECLR ';'
        | ASSGN ';' 
+       | error ';' /* synchronizing token */
        ;
 
 BLOCK : '{' STMT '}';
        
+WHILE_STMT : T_WHILE '(' EXPR ')' STMT
 
-
+IF_STMT : T_IF '(' EXPR ')' STMT
+         |T_IF '(' EXPR ')' STMT T_ELSE STMT
 
 %%
 
-void yyerror(char* s)
+
+/* error handling function */
+void yyerror(const char* s)
 {
-	printf("Error :%s at %d \n",s,yylineno);
+	printf("Error: %s,line number: %d,token: %s\n",s,yylineno,yytext);
+	err = 1; // An error has occurred
 }
+
 
 int main(int argc, char* argv[])
 {
